@@ -38,6 +38,7 @@ public interface MahoganyHomesConfig extends Config
 	String GROUP_NAME = "MahoganyHomes";
 	String HOME_KEY = "currentHome";
 	String TIER_KEY = "currentTier";
+	String LAST_TIER_KEY = "lastContractTier";
 	String WORLD_MAP_KEY = "worldMapIcon";
 	String HINT_ARROW_KEY = "displayHintArrows";
 	String SESSION_TIMEOUT_KEY = "sessionTimeout";
@@ -148,8 +149,8 @@ public interface MahoganyHomesConfig extends Config
 
 	@ConfigItem(
 		keyName = "highlightTeleports",
-		name = "Highlight Teleport Items",
-		description = "Configures whether or not the teleport items will be highlighted",
+		name = "Highlight Teleports",
+		description = "Configures whether or not teleport items and spells will be highlighted",
 		section = highlightSection,
 		position = 4
 	)
@@ -161,7 +162,7 @@ public interface MahoganyHomesConfig extends Config
 	@Alpha
 	@ConfigItem(
 		keyName = "highlightTeleportsColor",
-		name = "Teleport Item Highlight Color",
+		name = "Teleport Highlight Color",
 		description = "Configures the color your teleports will be highlighted",
 		section = highlightSection,
 		position = 5
@@ -169,6 +170,42 @@ public interface MahoganyHomesConfig extends Config
 	default Color highlightTeleportsColor()
 	{
 		return new Color(0, 255, 255, 50);
+	}
+
+	@ConfigItem(
+		keyName = "highlightTabIcons",
+		name = "Highlight Interface Tab Icons",
+		description = "Configures whether or not the side interface tabs (Inventory, Worn Equipment, Magic) will be highlighted when the recommended teleport is on another tab",
+		section = highlightSection,
+		position = 6
+	)
+	default boolean highlightTabIcons()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "postContractGuidance",
+		name = "Post-Contract Guide",
+		description = "Highlights the contractor NPC, teleport, and direction after completing a contract",
+		section = highlightSection,
+		position = 7
+	)
+	default boolean postContractGuidance()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "contractorMode",
+		name = "Contractor Preference",
+		description = "Strategy for choosing which contractor to visit after completing a contract",
+		section = highlightSection,
+		position = 8
+	)
+	default ContractorMode contractorMode()
+	{
+		return ContractorMode.SMART_NEAREST;
 	}
 
 	@ConfigSection(
@@ -225,7 +262,7 @@ public interface MahoganyHomesConfig extends Config
 		keyName = "checkSupplies",
 		name = "Check Supplies",
 		description = "Checks if you have enough supplies in your inventory to complete your current contract.<br/>" +
-            "If the plank sack is in your inventory, this will include planks of the correct type that are stored within it.",
+			"If the plank sack is in your inventory, this will include planks of the correct type that are stored within it.",
 		position = 10
 	)
 	default boolean checkSupplies()

@@ -28,7 +28,7 @@ dependencies {
 }
 
 group = 'thestonedturtle.mahoganyhomes'
-version = '1.8.3'
+version = '1.8.4'
 sourceCompatibility = '1.8'
 
 tasks.withType(JavaCompile) {
@@ -37,4 +37,12 @@ tasks.withType(JavaCompile) {
 
 checkstyle {
     configDirectory = file('./')
+}
+
+task run(type: JavaExec) {
+	group = 'Application'
+	description = 'Runs the Mahogany Homes test client with RuneLite'
+	classpath = sourceSets.test.runtimeClasspath
+	mainClass = 'thestonedturtle.mahoganyhomes.MahoganyHomesPluginTest'
+	enableAssertions = true
 }

@@ -28,6 +28,7 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import javax.inject.Inject;
+import net.runelite.api.NPC;
 import net.runelite.api.Player;
 import net.runelite.api.TileObject;
 import net.runelite.client.ui.overlay.Overlay;
@@ -58,8 +59,21 @@ class MahoganyHomesHighlightOverlay extends Overlay
 	{
 		final Home home = plugin.getCurrentHome();
 		final Player player = plugin.getClient().getLocalPlayer();
-		if (plugin.isPluginTimedOut() || home == null || player == null)
+		if (plugin.isPluginTimedOut() || player == null)
 		{
+			return null;
+		}
+
+		if (home == null)
+		{
+			final NPC contractorNpc = plugin.getContractorNpc();
+			if (contractorNpc != null && config.postContractGuidance())
+			{
+				final Color color = config.highlightHotspotColor();
+				final net.runelite.api.Point mousePosition = plugin.getClient().getMouseCanvasPosition();
+				OverlayUtil.renderHoverableArea(graphics, contractorNpc.getConvexHull(), mousePosition,
+					color, CLICKBOX_BORDER_COLOR, CLICKBOX_HOVER_BORDER_COLOR);
+			}
 			return null;
 		}
 
