@@ -24,6 +24,11 @@
  */
 package thestonedturtle.mahoganyhomes;
 
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+@Getter
+@RequiredArgsConstructor
 public enum ContractorMode
 {
 	SMART_NEAREST("Smart / Nearest"),
@@ -31,11 +36,6 @@ public enum ContractorMode
 	DISABLED("Disabled");
 
 	private final String name;
-
-	ContractorMode(final String name)
-	{
-		this.name = name;
-	}
 
 	@Override
 	public String toString()

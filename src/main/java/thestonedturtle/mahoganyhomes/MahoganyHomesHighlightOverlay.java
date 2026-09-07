@@ -66,14 +66,21 @@ class MahoganyHomesHighlightOverlay extends Overlay
 
 		if (home == null)
 		{
-			final NPC contractorNpc = plugin.getContractorNpc();
-			if (contractorNpc != null && config.postContractGuidance())
+			if (!config.postContractGuidance())
 			{
-				final Color color = config.highlightHotspotColor();
-				final net.runelite.api.Point mousePosition = plugin.getClient().getMouseCanvasPosition();
-				OverlayUtil.renderHoverableArea(graphics, contractorNpc.getConvexHull(), mousePosition,
-					color, CLICKBOX_BORDER_COLOR, CLICKBOX_HOVER_BORDER_COLOR);
+				return null;
 			}
+
+			final NPC contractorNpc = plugin.getContractorNpc();
+			if (contractorNpc == null)
+			{
+				return null;
+			}
+
+			final Color color = config.highlightHotspotColor();
+			final net.runelite.api.Point mousePosition = plugin.getClient().getMouseCanvasPosition();
+			OverlayUtil.renderHoverableArea(graphics, contractorNpc.getConvexHull(), mousePosition,
+				color, CLICKBOX_BORDER_COLOR, CLICKBOX_HOVER_BORDER_COLOR);
 			return null;
 		}
 

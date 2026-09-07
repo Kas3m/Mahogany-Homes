@@ -43,6 +43,10 @@ public interface MahoganyHomesConfig extends Config
 	String HINT_ARROW_KEY = "displayHintArrows";
 	String SESSION_TIMEOUT_KEY = "sessionTimeout";
 	String SHORTEST_PATH_KEY = "shortestPath";
+	String HIGHLIGHT_TELEPORTS_KEY = "highlightTeleports";
+	String POST_CONTRACT_KEY = "postContractGuidance";
+	String CONTRACTOR_MODE_KEY = "contractorMode";
+	String HIGHLIGHT_CONTRACTOR_TIERS_KEY = "highlightContractorTiers";
 
 	@ConfigItem(
 		keyName = WORLD_MAP_KEY,
@@ -148,7 +152,7 @@ public interface MahoganyHomesConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "highlightTeleports",
+		keyName = HIGHLIGHT_TELEPORTS_KEY,
 		name = "Highlight Teleports",
 		description = "Configures whether or not teleport items and spells will be highlighted",
 		section = highlightSection,
@@ -185,7 +189,7 @@ public interface MahoganyHomesConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "postContractGuidance",
+		keyName = POST_CONTRACT_KEY,
 		name = "Post-Contract Guide",
 		description = "Highlights the contractor NPC, teleport, and direction after completing a contract",
 		section = highlightSection,
@@ -197,7 +201,7 @@ public interface MahoganyHomesConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "contractorMode",
+		keyName = CONTRACTOR_MODE_KEY,
 		name = "Contractor Preference",
 		description = "Strategy for choosing which contractor to visit after completing a contract",
 		section = highlightSection,
@@ -206,6 +210,18 @@ public interface MahoganyHomesConfig extends Config
 	default ContractorMode contractorMode()
 	{
 		return ContractorMode.SMART_NEAREST;
+	}
+
+	@ConfigItem(
+		keyName = HIGHLIGHT_CONTRACTOR_TIERS_KEY,
+		name = "Highlight Contractor Tiers",
+		description = "Highlights contractor dialogue and menu options for your target contract tier",
+		section = highlightSection,
+		position = 9
+	)
+	default boolean highlightContractorTiers()
+	{
+		return true;
 	}
 
 	@ConfigSection(

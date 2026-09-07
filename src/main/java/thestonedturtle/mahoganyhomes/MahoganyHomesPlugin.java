@@ -135,6 +135,7 @@ public class MahoganyHomesPlugin extends Plugin
 	private Home currentHome;
 	@Getter
 	private Contractor currentContractor;
+	private WorldPoint lastContractorCheckLocation;
 	private Home lastCompletedHome;
 	private boolean varbChange;
 	private boolean plankSackVarbChange;
@@ -202,6 +203,7 @@ public class MahoganyHomesPlugin extends Plugin
 		laddersToMark.clear();
 		currentHome = null;
 		currentContractor = null;
+		lastContractorCheckLocation = null;
 		lastCompletedHome = null;
 		mapIcon = null;
 		mapArrow = null;
@@ -256,14 +258,14 @@ public class MahoganyHomesPlugin extends Plugin
 				}
 			}
 		}
-		else if (c.getKey().equals("highlightTeleports"))
+		else if (c.getKey().equals(MahoganyHomesConfig.HIGHLIGHT_TELEPORTS_KEY))
 		{
 			if (client.getLocalPlayer() != null)
 			{
 				clientThread.invoke(this::updateTeleportItem);
 			}
 		}
-		else if (c.getKey().equals("postContractGuidance") || c.getKey().equals("contractorMode"))
+		else if (c.getKey().equals(MahoganyHomesConfig.POST_CONTRACT_KEY) || c.getKey().equals(MahoganyHomesConfig.CONTRACTOR_MODE_KEY))
 		{
 			if (currentHome == null)
 			{
@@ -348,7 +350,7 @@ public class MahoganyHomesPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onGameTick(GameTick event)
+	public void onGameTick(GameTick t)
 	{
 		recolorDialogueOptions();
 
@@ -375,11 +377,19 @@ public class MahoganyHomesPlugin extends Plugin
 
 		if (currentHome == null)
 		{
-			if (currentContractor != null && config.postContractGuidance())
+			if (config.postContractGuidance() && client.getLocalPlayer() != null)
 			{
-				if (client.getLocalPlayer() != null)
+				final WorldPoint playerLocation = client.getLocalPlayer().getWorldLocation();
+
+				if (config.contractorMode() == ContractorMode.SMART_NEAREST
+					&& (lastContractorCheckLocation == null || !lastContractorCheckLocation.equals(playerLocation)))
 				{
-					final WorldPoint playerLocation = client.getLocalPlayer().getWorldLocation();
+					lastContractorCheckLocation = playerLocation;
+					selectPostContractContractor();
+				}
+
+				if (currentContractor != null)
+				{
 					contractorNpc = client.getNpcs().stream()
 						.filter(n -> Contractor.fromNpc(n) == currentContractor)
 						.findFirst()
@@ -388,9 +398,10 @@ public class MahoganyHomesPlugin extends Plugin
 					refreshTeleportItem(playerLocation);
 				}
 			}
-			else
+			else if (!config.postContractGuidance())
 			{
 				contractorNpc = null;
+				lastContractorCheckLocation = null;
 			}
 			return;
 		}
@@ -454,24 +465,22 @@ public class MahoganyHomesPlugin extends Plugin
 	@Subscribe
 	public void onItemContainerChanged(ItemContainerChanged event)
 	{
-		if (event.getContainerId() == InventoryID.INVENTORY.getId())
+		if (event.getContainerId() != InventoryID.INVENTORY.getId() && event.getContainerId() != InventoryID.EQUIPMENT.getId())
 		{
-			if (contractTier != 0 && !isPluginTimedOut())
-			{
-				updateResourcesInInventory();
-			}
-			if ((currentHome != null || (currentContractor != null && config.postContractGuidance())) && config.highlightTeleports())
-			{
-				updateTeleportItem();
-			}
+			return;
 		}
-		else if (event.getContainerId() == InventoryID.EQUIPMENT.getId())
+
+		if (event.getContainerId() == InventoryID.INVENTORY.getId() && contractTier != 0 && !isPluginTimedOut())
 		{
-			if ((currentHome != null || (currentContractor != null && config.postContractGuidance())) && config.highlightTeleports())
-			{
-				updateTeleportItem();
-			}
+			updateResourcesInInventory();
 		}
+
+		if ((currentHome == null && (!config.postContractGuidance() || currentContractor == null)) || !config.highlightTeleports())
+		{
+			return;
+		}
+
+		updateTeleportItem();
 	}
 
 	int getTargetContractTier()
@@ -533,7 +542,7 @@ public class MahoganyHomesPlugin extends Plugin
 		final Color teleColor = config.highlightTeleportsColor();
 
 		// Contractor right-click and dialogue tier highlights
-		if (currentHome == null && teleColor != null)
+		if (currentHome == null && teleColor != null && config.highlightContractorTiers())
 		{
 			// Highlight "Last-tier contract" on Contractor NPC
 			if (option.equalsIgnoreCase("Last-tier contract") || option.toLowerCase().contains("last-tier contract"))
@@ -724,6 +733,7 @@ public class MahoganyHomesPlugin extends Plugin
 		if (currentHome != null)
 		{
 			currentContractor = null;
+			lastContractorCheckLocation = null;
 		}
 		client.clearHintArrow();
 		lastChanged = Instant.now();
@@ -807,7 +817,7 @@ public class MahoganyHomesPlugin extends Plugin
 		else
 		{
 			final WorldPoint playerPos = client.getLocalPlayer() != null ? client.getLocalPlayer().getWorldLocation() : null;
-			final Contractor local = lastCompletedHome != null ? Contractor.fromHome(lastCompletedHome) : (playerPos != null ? Contractor.getClosestContractor(playerPos) : Contractor.AMY);
+			final Contractor local = playerPos != null ? Contractor.getClosestContractor(playerPos) : (lastCompletedHome != null ? Contractor.fromHome(lastCompletedHome) : Contractor.AMY);
 
 			final int walkDistance = (local != null && playerPos != null) ? distanceBetween(local.getArea(), playerPos) : Integer.MAX_VALUE;
 

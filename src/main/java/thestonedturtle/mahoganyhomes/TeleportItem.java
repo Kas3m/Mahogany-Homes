@@ -213,7 +213,7 @@ public class TeleportItem
 			return TeleportTab.EQUIPMENT;
 		}
 
-		return TeleportTab.INVENTORY;
+		return null;
 	}
 
 	public boolean canCastSpell(final Client client)
