@@ -27,12 +27,13 @@ package thestonedturtle.mahoganyhomes;
 import net.runelite.api.Client;
 import net.runelite.api.Item;
 import net.runelite.api.ItemID;
+import net.runelite.api.gameval.InterfaceID;
 
 public enum TeleportItems
 {
 	// East Ardy
 	JESS(new TeleportItem(ItemID.ARDOUGNE_TELEPORT, 38),
-		new TeleportItem("Ardougne Teleport", 38, 51, new Item(ItemID.LAW_RUNE, 2), new Item(ItemID.WATER_RUNE, 2)),
+		new TeleportItem("Ardougne Teleport", InterfaceID.MagicSpellbook.ARDOUGNE_TELEPORT, 38, 51, new Item(ItemID.LAW_RUNE, 2), new Item(ItemID.WATER_RUNE, 2)),
 		new TeleportItem(ItemID.ACHIEVEMENT_DIARY_CAPE, 40),
 		new TeleportItem(ItemID.ACHIEVEMENT_DIARY_CAPE_T, 40),
 		new TeleportItem(ItemID.ARDOUGNE_CLOAK_4, 70),
@@ -40,7 +41,7 @@ public enum TeleportItems
 		new TeleportItem(ItemID.ARDOUGNE_CLOAK_2, 70),
 		new TeleportItem(ItemID.ARDOUGNE_CLOAK_1, 70)),
 	NOELLA(new TeleportItem(ItemID.ARDOUGNE_TELEPORT, 16),
-		new TeleportItem("Ardougne Teleport", 16, 51, new Item(ItemID.LAW_RUNE, 2), new Item(ItemID.WATER_RUNE, 2)),
+		new TeleportItem("Ardougne Teleport", InterfaceID.MagicSpellbook.ARDOUGNE_TELEPORT, 16, 51, new Item(ItemID.LAW_RUNE, 2), new Item(ItemID.WATER_RUNE, 2)),
 		new TeleportItem(ItemID.ARDOUGNE_CLOAK_4, 96),
 		new TeleportItem(ItemID.ARDOUGNE_CLOAK_3, 96),
 		new TeleportItem(ItemID.ARDOUGNE_CLOAK_2, 96),
@@ -50,7 +51,7 @@ public enum TeleportItems
 	ROSS(new TeleportItem(ItemID.ACHIEVEMENT_DIARY_CAPE, 56),
 		new TeleportItem(ItemID.ACHIEVEMENT_DIARY_CAPE_T, 56),
 		new TeleportItem(ItemID.ARDOUGNE_TELEPORT, 60),
-		new TeleportItem("Ardougne Teleport", 60, 51, new Item(ItemID.LAW_RUNE, 2), new Item(ItemID.WATER_RUNE, 2)),
+		new TeleportItem("Ardougne Teleport", InterfaceID.MagicSpellbook.ARDOUGNE_TELEPORT, 60, 51, new Item(ItemID.LAW_RUNE, 2), new Item(ItemID.WATER_RUNE, 2)),
 		new TeleportItem(ItemID.ARDOUGNE_CLOAK_4, 92),
 		new TeleportItem(ItemID.ARDOUGNE_CLOAK_3, 92),
 		new TeleportItem(ItemID.ARDOUGNE_CLOAK_2, 92),
@@ -74,7 +75,7 @@ public enum TeleportItems
 		new TeleportItem(ItemID.SKILLS_NECKLACE2, 38, "Mining Guild"),
 		new TeleportItem(ItemID.SKILLS_NECKLACE1, 38, "Mining Guild"),
 		new TeleportItem(ItemID.FALADOR_TELEPORT, 67),
-		new TeleportItem("Falador Teleport", 67, 37, new Item(ItemID.LAW_RUNE, 1), new Item(ItemID.AIR_RUNE, 3), new Item(ItemID.WATER_RUNE, 1)),
+		new TeleportItem("Falador Teleport", InterfaceID.MagicSpellbook.FALADOR_TELEPORT, 67, 37, new Item(ItemID.LAW_RUNE, 1), new Item(ItemID.AIR_RUNE, 3), new Item(ItemID.WATER_RUNE, 1)),
 		new TeleportItem(ItemID.ACHIEVEMENT_DIARY_CAPE, 80),
 		new TeleportItem(ItemID.ACHIEVEMENT_DIARY_CAPE_T, 80)),
 	NORMAN(new TeleportItem(ItemID.RING_OF_WEALTH_I5, 38, "Falador"),
@@ -94,7 +95,7 @@ public enum TeleportItems
 		new TeleportItem(ItemID.SKILLS_NECKLACE2, 39, "Mining Guild"),
 		new TeleportItem(ItemID.SKILLS_NECKLACE1, 39, "Mining Guild"),
 		new TeleportItem(ItemID.FALADOR_TELEPORT, 70),
-		new TeleportItem("Falador Teleport", 70, 37, new Item(ItemID.LAW_RUNE, 1), new Item(ItemID.AIR_RUNE, 3), new Item(ItemID.WATER_RUNE, 1)),
+		new TeleportItem("Falador Teleport", InterfaceID.MagicSpellbook.FALADOR_TELEPORT, 70, 37, new Item(ItemID.LAW_RUNE, 1), new Item(ItemID.AIR_RUNE, 3), new Item(ItemID.WATER_RUNE, 1)),
 		new TeleportItem(ItemID.ACHIEVEMENT_DIARY_CAPE, 71),
 		new TeleportItem(ItemID.ACHIEVEMENT_DIARY_CAPE_T, 71)),
 	TAU(new TeleportItem(ItemID.SKILLS_NECKLACE6, 45, "Mining Guild"),
@@ -114,13 +115,13 @@ public enum TeleportItems
 		new TeleportItem(ItemID.RING_OF_WEALTH_2, 47, "Falador"),
 		new TeleportItem(ItemID.RING_OF_WEALTH_1, 47, "Falador"),
 		new TeleportItem(ItemID.FALADOR_TELEPORT, 78),
-		new TeleportItem("Falador Teleport", 78, 37, new Item(ItemID.LAW_RUNE, 1), new Item(ItemID.AIR_RUNE, 3), new Item(ItemID.WATER_RUNE, 1)),
+		new TeleportItem("Falador Teleport", InterfaceID.MagicSpellbook.FALADOR_TELEPORT, 78, 37, new Item(ItemID.LAW_RUNE, 1), new Item(ItemID.AIR_RUNE, 3), new Item(ItemID.WATER_RUNE, 1)),
 		new TeleportItem(ItemID.ACHIEVEMENT_DIARY_CAPE, 79),
 		new TeleportItem(ItemID.ACHIEVEMENT_DIARY_CAPE_T, 79)),
 
 	// Hosidius
 	BARBARA(new TeleportItem(ItemID.TELEPORT_TO_HOUSE, 14),
-		new TeleportItem("Teleport to House", 14, 40, new Item(ItemID.LAW_RUNE, 1), new Item(ItemID.AIR_RUNE, 1), new Item(ItemID.EARTH_RUNE, 1)),
+		new TeleportItem("Teleport to House", InterfaceID.MagicSpellbook.TELEPORT_TO_YOUR_HOUSE, 14, 40, new Item(ItemID.LAW_RUNE, 1), new Item(ItemID.AIR_RUNE, 1), new Item(ItemID.EARTH_RUNE, 1)),
 		new TeleportItem(ItemID.HOSIDIUS_TELEPORT, 14),
 		new TeleportItem(ItemID.CONSTRUCT_CAPE, 14),
 		new TeleportItem(ItemID.CONSTRUCT_CAPET, 14),
@@ -131,28 +132,28 @@ public enum TeleportItems
 		new TeleportItem(ItemID.KHAREDSTS_MEMOIRS, 67, "Lunch by the Lancalliums"),
 		new TeleportItem(ItemID.BOOK_OF_THE_DEAD, 67, "Lunch by the Lancalliums"),
 		new TeleportItem(ItemID.TELEPORT_TO_HOUSE, 72),
-		new TeleportItem("Teleport to House", 72, 40, new Item(ItemID.LAW_RUNE, 1), new Item(ItemID.AIR_RUNE, 1), new Item(ItemID.EARTH_RUNE, 1)),
+		new TeleportItem("Teleport to House", InterfaceID.MagicSpellbook.TELEPORT_TO_YOUR_HOUSE, 72, 40, new Item(ItemID.LAW_RUNE, 1), new Item(ItemID.AIR_RUNE, 1), new Item(ItemID.EARTH_RUNE, 1)),
 		new TeleportItem(ItemID.HOSIDIUS_TELEPORT, 72)),
 	MARIAH(new TeleportItem(ItemID.XERICS_TALISMAN, 50, "Xeric's Glade"),
 		new TeleportItem(ItemID.KHAREDSTS_MEMOIRS, 56, "Lunch by the Lancalliums"),
 		new TeleportItem(ItemID.BOOK_OF_THE_DEAD, 56, "Lunch by the Lancalliums"),
 		new TeleportItem(ItemID.TELEPORT_TO_HOUSE, 100),
-		new TeleportItem("Teleport to House", 100, 40, new Item(ItemID.LAW_RUNE, 1), new Item(ItemID.AIR_RUNE, 1), new Item(ItemID.EARTH_RUNE, 1)),
+		new TeleportItem("Teleport to House", InterfaceID.MagicSpellbook.TELEPORT_TO_YOUR_HOUSE, 100, 40, new Item(ItemID.LAW_RUNE, 1), new Item(ItemID.AIR_RUNE, 1), new Item(ItemID.EARTH_RUNE, 1)),
 		new TeleportItem(ItemID.HOSIDIUS_TELEPORT, 100)),
 
 	// Varrock
 	BOB(new TeleportItem(ItemID.VARROCK_TELEPORT, 60),
-		new TeleportItem("Varrock Teleport", 60, 25, new Item(ItemID.LAW_RUNE, 1), new Item(ItemID.AIR_RUNE, 3), new Item(ItemID.FIRE_RUNE, 1)),
+		new TeleportItem("Varrock Teleport", InterfaceID.MagicSpellbook.VARROCK_TELEPORT, 60, 25, new Item(ItemID.LAW_RUNE, 1), new Item(ItemID.AIR_RUNE, 3), new Item(ItemID.FIRE_RUNE, 1)),
 		new TeleportItem(ItemID.ACHIEVEMENT_DIARY_CAPE, 100),
 		new TeleportItem(ItemID.ACHIEVEMENT_DIARY_CAPE_T, 100)),
 	JEFF(new TeleportItem(ItemID.VARROCK_TELEPORT, 23),
-		new TeleportItem("Varrock Teleport", 23, 25, new Item(ItemID.LAW_RUNE, 1), new Item(ItemID.AIR_RUNE, 3), new Item(ItemID.FIRE_RUNE, 1)),
+		new TeleportItem("Varrock Teleport", InterfaceID.MagicSpellbook.VARROCK_TELEPORT, 23, 25, new Item(ItemID.LAW_RUNE, 1), new Item(ItemID.AIR_RUNE, 3), new Item(ItemID.FIRE_RUNE, 1)),
 		new TeleportItem(ItemID.ACHIEVEMENT_DIARY_CAPE, 30),
 		new TeleportItem(ItemID.ACHIEVEMENT_DIARY_CAPE_T, 30)),
 	SARAH(new TeleportItem(ItemID.ACHIEVEMENT_DIARY_CAPE, 28),
 		new TeleportItem(ItemID.ACHIEVEMENT_DIARY_CAPE_T, 28),
 		new TeleportItem(ItemID.VARROCK_TELEPORT, 37),
-		new TeleportItem("Varrock Teleport", 37, 25, new Item(ItemID.LAW_RUNE, 1), new Item(ItemID.AIR_RUNE, 3), new Item(ItemID.FIRE_RUNE, 1))),
+		new TeleportItem("Varrock Teleport", InterfaceID.MagicSpellbook.VARROCK_TELEPORT, 37, 25, new Item(ItemID.LAW_RUNE, 1), new Item(ItemID.AIR_RUNE, 3), new Item(ItemID.FIRE_RUNE, 1))),
 
 	// Contractors
 	AMY(new TeleportItem(ItemID.RING_OF_WEALTH_I5, 10, "Falador"),
@@ -166,7 +167,7 @@ public enum TeleportItems
 		new TeleportItem(ItemID.RING_OF_WEALTH_2, 10, "Falador"),
 		new TeleportItem(ItemID.RING_OF_WEALTH_1, 10, "Falador"),
 		new TeleportItem(ItemID.FALADOR_TELEPORT, 23),
-		new TeleportItem("Falador Teleport", 23, 37, new Item(ItemID.LAW_RUNE, 1), new Item(ItemID.AIR_RUNE, 3), new Item(ItemID.WATER_RUNE, 1)),
+		new TeleportItem("Falador Teleport", InterfaceID.MagicSpellbook.FALADOR_TELEPORT, 23, 37, new Item(ItemID.LAW_RUNE, 1), new Item(ItemID.AIR_RUNE, 3), new Item(ItemID.WATER_RUNE, 1)),
 		new TeleportItem(ItemID.SKILLS_NECKLACE6, 27, "Mining Guild"),
 		new TeleportItem(ItemID.SKILLS_NECKLACE5, 27, "Mining Guild"),
 		new TeleportItem(ItemID.SKILLS_NECKLACE4, 27, "Mining Guild"),
@@ -175,14 +176,14 @@ public enum TeleportItems
 		new TeleportItem(ItemID.SKILLS_NECKLACE1, 27, "Mining Guild")),
 	ANGELO(new TeleportItem(ItemID.XERICS_TALISMAN, 30, "Xeric's Glade"),
 		new TeleportItem(ItemID.TELEPORT_TO_HOUSE, 40),
-		new TeleportItem("Teleport to House", 40, 40, new Item(ItemID.LAW_RUNE, 1), new Item(ItemID.AIR_RUNE, 1), new Item(ItemID.EARTH_RUNE, 1)),
+		new TeleportItem("Teleport to House", InterfaceID.MagicSpellbook.TELEPORT_TO_YOUR_HOUSE, 40, 40, new Item(ItemID.LAW_RUNE, 1), new Item(ItemID.AIR_RUNE, 1), new Item(ItemID.EARTH_RUNE, 1)),
 		new TeleportItem(ItemID.HOSIDIUS_TELEPORT, 40),
 		new TeleportItem(ItemID.KHAREDSTS_MEMOIRS, 50, "Lunch by the Lancalliums"),
 		new TeleportItem(ItemID.BOOK_OF_THE_DEAD, 50, "Lunch by the Lancalliums")),
 	MARLO(new TeleportItem(ItemID.VARROCK_TELEPORT, 55),
-		new TeleportItem("Varrock Teleport", 55, 25, new Item(ItemID.LAW_RUNE, 1), new Item(ItemID.AIR_RUNE, 3), new Item(ItemID.FIRE_RUNE, 1))),
+		new TeleportItem("Varrock Teleport", InterfaceID.MagicSpellbook.VARROCK_TELEPORT, 55, 25, new Item(ItemID.LAW_RUNE, 1), new Item(ItemID.AIR_RUNE, 3), new Item(ItemID.FIRE_RUNE, 1))),
 	ELLIE(new TeleportItem(ItemID.ARDOUGNE_TELEPORT, 50),
-		new TeleportItem("Ardougne Teleport", 50, 51, new Item(ItemID.LAW_RUNE, 2), new Item(ItemID.WATER_RUNE, 2)));
+		new TeleportItem("Ardougne Teleport", InterfaceID.MagicSpellbook.ARDOUGNE_TELEPORT, 50, 51, new Item(ItemID.LAW_RUNE, 2), new Item(ItemID.WATER_RUNE, 2)));
 
 	private final TeleportItem[] teleportItems;
 

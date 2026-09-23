@@ -81,6 +81,7 @@ public class MahoganyHomesTest
 		final net.runelite.api.ItemContainer inv = org.mockito.Mockito.mock(net.runelite.api.ItemContainer.class);
 		org.mockito.Mockito.when(client.getItemContainer(net.runelite.api.InventoryID.INVENTORY)).thenReturn(inv);
 		org.mockito.Mockito.when(inv.contains(net.runelite.api.ItemID.TELEPORT_TO_HOUSE)).thenReturn(true);
+		org.mockito.Mockito.when(client.getVarbitValue(net.runelite.api.gameval.VarbitID.POH_HOUSE_LOCATION)).thenReturn(8);
 
 		final TeleportItem best = Home.BARBARA.getTeleportItems().getClosestTeleportItemOnPlayer(client);
 		org.junit.Assert.assertNotNull(best);
@@ -111,6 +112,7 @@ public class MahoganyHomesTest
 		org.mockito.Mockito.when(inv.contains(net.runelite.api.ItemID.XERICS_TALISMAN)).thenReturn(false);
 		org.mockito.Mockito.when(inv.contains(net.runelite.api.ItemID.TELEPORT_TO_HOUSE)).thenReturn(false);
 		org.mockito.Mockito.when(client.getVarbitValue(net.runelite.api.Varbits.SPELLBOOK)).thenReturn(0);
+		org.mockito.Mockito.when(client.getVarbitValue(net.runelite.api.gameval.VarbitID.POH_HOUSE_LOCATION)).thenReturn(8);
 		org.mockito.Mockito.when(client.getBoostedSkillLevel(net.runelite.api.Skill.MAGIC)).thenReturn(70);
 		org.mockito.Mockito.when(inv.count(net.runelite.api.ItemID.LAW_RUNE)).thenReturn(5);
 		org.mockito.Mockito.when(inv.count(net.runelite.api.ItemID.AIR_RUNE)).thenReturn(5);
@@ -144,50 +146,6 @@ public class MahoganyHomesTest
 
 		org.junit.Assert.assertEquals(0, Home.BARBARA.getArea().distanceTo(near));
 		org.junit.Assert.assertTrue(Home.BARBARA.getArea().distanceTo(farBank) > 500);
-	}
-
-	@Test
-	public void testSpellWidgetDiscovery()
-	{
-		final net.runelite.api.Client client = org.mockito.Mockito.mock(net.runelite.api.Client.class);
-		final MahoganyHomesPlugin plugin = org.mockito.Mockito.mock(MahoganyHomesPlugin.class);
-		final MahoganyHomesConfig config = org.mockito.Mockito.mock(MahoganyHomesConfig.class);
-
-		final net.runelite.api.widgets.Widget parent = org.mockito.Mockito.mock(net.runelite.api.widgets.Widget.class);
-		final net.runelite.api.widgets.Widget spell = org.mockito.Mockito.mock(net.runelite.api.widgets.Widget.class);
-
-		org.mockito.Mockito.when(client.getWidget(net.runelite.api.widgets.ComponentID.SPELLBOOK_PARENT)).thenReturn(parent);
-		org.mockito.Mockito.when(parent.getNestedChildren()).thenReturn(new net.runelite.api.widgets.Widget[]{spell});
-		org.mockito.Mockito.when(spell.getName()).thenReturn("<col=00ff00>Cast</col> <col=00ffff>Teleport to House</col>");
-		org.mockito.Mockito.when(spell.getBounds()).thenReturn(new java.awt.Rectangle(100, 100, 24, 24));
-
-		final TeleportWidgetOverlay overlay = new TeleportWidgetOverlay(client, plugin, config);
-		final net.runelite.api.widgets.Widget found = overlay.findSpellWidget("Teleport to House");
-
-		org.junit.Assert.assertNotNull(found);
-		org.junit.Assert.assertEquals(spell, found);
-	}
-
-	@Test
-	public void testDialogOptionDiscovery()
-	{
-		final net.runelite.api.Client client = org.mockito.Mockito.mock(net.runelite.api.Client.class);
-		final MahoganyHomesPlugin plugin = new MahoganyHomesPlugin();
-		plugin.setClient(client);
-
-		final net.runelite.api.widgets.Widget parent = org.mockito.Mockito.mock(net.runelite.api.widgets.Widget.class);
-		final net.runelite.api.widgets.Widget option1 = org.mockito.Mockito.mock(net.runelite.api.widgets.Widget.class);
-		final net.runelite.api.widgets.Widget option2 = org.mockito.Mockito.mock(net.runelite.api.widgets.Widget.class);
-
-		org.mockito.Mockito.when(client.getWidget(net.runelite.api.widgets.ComponentID.DIALOG_OPTION_OPTIONS)).thenReturn(parent);
-		org.mockito.Mockito.when(parent.getChildren()).thenReturn(new net.runelite.api.widgets.Widget[]{option1, option2});
-		org.mockito.Mockito.when(option1.getText()).thenReturn("'Lunch by the Lancalliums' - Hosidius");
-		org.mockito.Mockito.when(option1.getBounds()).thenReturn(new java.awt.Rectangle(200, 300, 200, 20));
-
-		final net.runelite.api.widgets.Widget found = plugin.findDialogOptionWidget("Lunch by the Lancalliums");
-
-		org.junit.Assert.assertNotNull(found);
-		org.junit.Assert.assertEquals(option1, found);
 	}
 
 	@Test

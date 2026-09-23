@@ -3,7 +3,6 @@ package thestonedturtle.mahoganyhomes;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.inject.Provides;
 import java.awt.Color;
-import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.time.Duration;
 import java.time.Instant;
@@ -11,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -30,6 +30,8 @@ import net.runelite.api.ItemID;
 import net.runelite.api.MenuEntry;
 import net.runelite.api.NPC;
 import net.runelite.api.Skill;
+import net.runelite.api.VarbitComposition;
+import net.runelite.api.Varbits;
 import net.runelite.api.coords.WorldArea;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.ChatMessage;
@@ -39,8 +41,12 @@ import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.MenuEntryAdded;
+import net.runelite.api.events.ScriptCallbackEvent;
+import net.runelite.api.events.StatChanged;
 import net.runelite.api.events.UsernameChanged;
 import net.runelite.api.events.VarbitChanged;
+import net.runelite.api.events.WidgetLoaded;
+import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.api.widgets.ComponentID;
 import net.runelite.api.widgets.Widget;
@@ -110,6 +116,15 @@ public class MahoganyHomesPlugin extends Plugin
 	private TeleportWidgetOverlay teleportWidgetOverlay;
 
 	@Inject
+	private DialogueHighlighter dialogueHighlighter;
+
+	private volatile boolean running;
+	private volatile int dialogueGeneration;
+	private int pendingDialogueGeneration = -1;
+	private boolean teleportInputsChanged;
+	private volatile boolean restoreContractOnLogin;
+
+	@Inject
 	private WorldMapPointManager worldMapPointManager;
 
 	@Inject
@@ -150,8 +165,6 @@ public class MahoganyHomesPlugin extends Plugin
 	@Getter
 	private TeleportItem candidateTeleportItem;
 	@Getter
-	private TeleportItem.TeleportTab targetTeleportTab;
-	@Getter
 	private NPC contractorNpc;
 	private WorldPoint lastHintArrowPoint;
 	private NPC lastHintArrowNpc;
@@ -175,6 +188,9 @@ public class MahoganyHomesPlugin extends Plugin
 	@Override
 	public void startUp()
 	{
+		running = true;
+		restoreContractOnLogin = true;
+		dialogueGeneration++;
 		overlayManager.add(textOverlay);
 		overlayManager.add(highlightOverlay);
 		overlayManager.add(teleportItemOverlay);
@@ -187,27 +203,38 @@ public class MahoganyHomesPlugin extends Plugin
 		lastChanged = Instant.now();
 		lastCompletedCount = 0;
 		pluginTimeoutDuration = Duration.ofMinutes(config.sessionTimeout());
+		queueDialogueUpdate();
 	}
 
 	@Override
 	public void shutDown()
 	{
+		running = false;
+		restoreContractOnLogin = false;
+		dialogueGeneration++;
+		clientThread.invoke(dialogueHighlighter::clear);
+		lastContractTier = 0;
+		teleportInputsChanged = false;
 		overlayManager.remove(textOverlay);
 		overlayManager.remove(highlightOverlay);
 		overlayManager.remove(teleportItemOverlay);
 		overlayManager.remove(teleportWidgetOverlay);
 		worldMapPointManager.removeIf(MahoganyHomesWorldPoint.class::isInstance);
 		client.clearHintArrow();
+		lastHintArrowPoint = null;
+		lastHintArrowNpc = null;
 		varbMap.clear();
 		objectsToMark.clear();
 		laddersToMark.clear();
 		currentHome = null;
 		currentContractor = null;
+		contractorNpc = null;
 		lastContractorCheckLocation = null;
 		lastCompletedHome = null;
 		mapIcon = null;
 		mapArrow = null;
 		teleportItem = null;
+		candidateTeleportItem = null;
 		lastChanged = null;
 		lastCompletedCount = -1;
 		contractTier = 0;
@@ -219,6 +246,14 @@ public class MahoganyHomesPlugin extends Plugin
 	@Subscribe
 	public void onConfigChanged(ConfigChanged c)
 	{
+		if ("spellbook".equals(c.getGroup()))
+		{
+			clientThread.invoke(() ->
+			{
+				teleportInputsChanged = true;
+			});
+			return;
+		}
 		if (!c.getGroup().equals(MahoganyHomesConfig.GROUP_NAME))
 		{
 			return;
@@ -235,6 +270,8 @@ public class MahoganyHomesPlugin extends Plugin
 		else if (c.getKey().equals(MahoganyHomesConfig.HINT_ARROW_KEY))
 		{
 			client.clearHintArrow();
+			lastHintArrowPoint = null;
+			lastHintArrowNpc = null;
 			if (client.getLocalPlayer() != null)
 			{
 				refreshHintArrow(client.getLocalPlayer().getWorldLocation());
@@ -260,23 +297,35 @@ public class MahoganyHomesPlugin extends Plugin
 		}
 		else if (c.getKey().equals(MahoganyHomesConfig.HIGHLIGHT_TELEPORTS_KEY))
 		{
-			if (client.getLocalPlayer() != null)
-			{
-				clientThread.invoke(this::updateTeleportItem);
-			}
+			clientThread.invoke(this::updateTeleportItem);
 		}
 		else if (c.getKey().equals(MahoganyHomesConfig.POST_CONTRACT_KEY) || c.getKey().equals(MahoganyHomesConfig.CONTRACTOR_MODE_KEY))
 		{
 			if (currentHome == null)
 			{
-				selectPostContractContractor();
+				clientThread.invoke(this::selectPostContractContractor);
 			}
 		}
+		queueDialogueUpdate();
 	}
 
 	@Subscribe
 	public void onVarbitChanged(VarbitChanged event)
 	{
+		if (event.getVarbitId() == Varbits.SPELLBOOK || TeleportItem.isRunePouchVarbit(event.getVarbitId())
+			|| event.getVarbitId() == VarbitID.POH_HOUSE_LOCATION)
+		{
+			teleportInputsChanged = true;
+		}
+		else if (event.getVarpId() >= 0)
+		{
+			// Server updates can report the containing varp instead of the house varbit.
+			final VarbitComposition houseLocation = client.getVarbit(VarbitID.POH_HOUSE_LOCATION);
+			if (houseLocation != null && event.getVarpId() == houseLocation.getIndex())
+			{
+				teleportInputsChanged = true;
+			}
+		}
 		// Defer to game tick for better performance
 		varbChange = true;
 		switch (event.getVarbitId())
@@ -293,6 +342,12 @@ public class MahoganyHomesPlugin extends Plugin
 	@Subscribe
 	public void onGameStateChanged(GameStateChanged e)
 	{
+		if (e.getGameState() == GameState.LOGIN_SCREEN)
+		{
+			restoreContractOnLogin = true;
+			lastCompletedHome = null;
+			resetContractGuidanceVars();
+		}
 		if (e.getGameState() == GameState.LOADING)
 		{
 			objectsToMark.clear();
@@ -303,6 +358,11 @@ public class MahoganyHomesPlugin extends Plugin
 	@Subscribe
 	public void onUsernameChanged(UsernameChanged e)
 	{
+		resetContractGuidanceVars();
+		lastCompletedHome = null;
+		restoreContractOnLogin = true;
+		currentHome = null;
+		contractTier = 0;
 		loadFromConfig();
 	}
 
@@ -340,6 +400,9 @@ public class MahoganyHomesPlugin extends Plugin
 			worldMapPointManager.removeIf(MahoganyHomesWorldPoint.class::isInstance);
 			client.clearHintArrow();
 			wasTimedOut = true;
+			resetTeleportGuidance();
+			lastHintArrowPoint = null;
+			lastHintArrowNpc = null;
 		}
 
 		if (e.getEntry().getOption().equals(MahoganyHomesOverlay.RESET_SESSION_OPTION))
@@ -352,32 +415,37 @@ public class MahoganyHomesPlugin extends Plugin
 	@Subscribe
 	public void onGameTick(GameTick t)
 	{
-		recolorDialogueOptions();
-
+		if (restoreContractOnLogin && client.getGameState() == GameState.LOGGED_IN)
+		{
+			// UsernameChanged can arrive before the account hash/profile is ready.
+			// Retry once on the first logged-in tick, never on ordinary region loads.
+			restoreContractOnLogin = false;
+			resetContractGuidanceVars();
+			currentHome = null;
+			contractTier = 0;
+			worldMapPointManager.removeIf(MahoganyHomesWorldPoint.class::isInstance);
+			loadFromConfig();
+			updateVarbMap();
+		}
 		if (contractTier == 0 || currentHome == null)
 		{
 			checkForContractTierDialog();
 		}
 
 		checkForAssignmentDialog();
-
-		// The plugin automatically disables after 5 minutes of inactivity.
-		if (isPluginTimedOut())
+		if (teleportInputsChanged)
 		{
-			if (!wasTimedOut)
-			{
-				// Remove worldPoint and clear hint arrow when plugin times out
-				worldMapPointManager.removeIf(MahoganyHomesWorldPoint.class::isInstance);
-				client.clearHintArrow();
-				teleportItem = null;
-			}
-			wasTimedOut = true;
-			return;
+			teleportInputsChanged = false;
+			refreshTeleportAvailability();
 		}
 
 		if (currentHome == null)
 		{
-			if (config.postContractGuidance() && client.getLocalPlayer() != null)
+			if (stopTimedOutGuidance())
+			{
+				return;
+			}
+			if (lastCompletedHome != null && config.postContractGuidance() && config.contractorMode() != ContractorMode.DISABLED && client.getLocalPlayer() != null)
 			{
 				final WorldPoint playerLocation = client.getLocalPlayer().getWorldLocation();
 
@@ -398,10 +466,12 @@ public class MahoganyHomesPlugin extends Plugin
 					refreshTeleportItem(playerLocation);
 				}
 			}
-			else if (!config.postContractGuidance())
+			else if (lastCompletedHome == null || !config.postContractGuidance() || config.contractorMode() == ContractorMode.DISABLED)
 			{
-				contractorNpc = null;
-				lastContractorCheckLocation = null;
+				if (currentContractor != null || contractorNpc != null || candidateTeleportItem != null)
+				{
+					resetContractGuidanceVars();
+				}
 			}
 			return;
 		}
@@ -433,10 +503,33 @@ public class MahoganyHomesPlugin extends Plugin
 			}
 		}
 
+		if (stopTimedOutGuidance())
+		{
+			return;
+		}
+
 		WorldPoint playerLocation = client.getLocalPlayer().getWorldLocation();
 
 		refreshHintArrow(playerLocation);
 		refreshTeleportItem(playerLocation);
+	}
+
+	private boolean stopTimedOutGuidance()
+	{
+		if (!isPluginTimedOut())
+		{
+			return false;
+		}
+		if (!wasTimedOut)
+		{
+			worldMapPointManager.removeIf(MahoganyHomesWorldPoint.class::isInstance);
+			clearGuidanceHintArrow();
+			resetTeleportGuidance();
+			contractorNpc = null;
+			lastContractorCheckLocation = null;
+		}
+		wasTimedOut = true;
+		return true;
 	}
 
 	@Subscribe
@@ -480,7 +573,28 @@ public class MahoganyHomesPlugin extends Plugin
 			return;
 		}
 
-		updateTeleportItem();
+		refreshTeleportAvailability();
+	}
+
+	@Subscribe
+	public void onStatChanged(final StatChanged event)
+	{
+		if (event.getSkill() == Skill.MAGIC)
+		{
+			teleportInputsChanged = true;
+		}
+	}
+
+	private void refreshTeleportAvailability()
+	{
+		if (currentHome == null && currentContractor != null && config.contractorMode() == ContractorMode.SMART_NEAREST)
+		{
+			selectPostContractContractor();
+		}
+		else
+		{
+			updateTeleportItem();
+		}
 	}
 
 	int getTargetContractTier()
@@ -535,25 +649,31 @@ public class MahoganyHomesPlugin extends Plugin
 	@Subscribe
 	public void onMenuEntryAdded(MenuEntryAdded event)
 	{
+		if (isPluginTimedOut())
+		{
+			return;
+		}
 		final MenuEntry entry = event.getMenuEntry();
 		final String rawOption = entry.getOption();
 		final String option = Text.removeTags(rawOption).trim();
 		final String target = entry.getTarget() != null ? Text.removeTags(entry.getTarget()).trim() : "";
 		final Color teleColor = config.highlightTeleportsColor();
+		final Widget widget = entry.getWidget();
+		final boolean dialogueOption = widget != null && (widget.getId() >>> 16) == InterfaceID.CHATMENU;
 
 		// Contractor right-click and dialogue tier highlights
 		if (currentHome == null && teleColor != null && config.highlightContractorTiers())
 		{
 			// Highlight "Last-tier contract" on Contractor NPC
-			if (option.equalsIgnoreCase("Last-tier contract") || option.toLowerCase().contains("last-tier contract"))
+			if (option.equalsIgnoreCase("Last-tier contract") && Contractor.fromNpc(entry.getNpc()) != null)
 			{
 				entry.setOption(ColorUtil.prependColorTag(rawOption, teleColor));
 				return;
 			}
 
 			// Highlight active contract tier in dialogue
-			final String tierName = getTargetTierName().toLowerCase();
-			if (option.toLowerCase().contains(tierName) || target.toLowerCase().contains(tierName))
+			final String tierName = getTargetTierName().toLowerCase(Locale.ROOT);
+			if (dialogueOption && (option.toLowerCase(Locale.ROOT).contains(tierName) || target.toLowerCase(Locale.ROOT).contains(tierName)))
 			{
 				entry.setOption(ColorUtil.prependColorTag(rawOption, teleColor));
 				return;
@@ -567,32 +687,46 @@ public class MahoganyHomesPlugin extends Plugin
 		}
 
 		final String hint = teleportItem.getDestinationHint();
-		final int itemId = entry.getItemId();
+		final boolean matchingItem = !teleportItem.isSpell() && teleportItem.matchesMenuEntry(entry);
+		final boolean teleportMenu = widget != null && ((widget.getId() >>> 16) == InterfaceID.MENU || dialogueOption);
 
 		boolean match = false;
+		if (matchingItem && teleportItem.getItemId() == ItemID.VARROCK_TELEPORT)
+		{
+			// Highlight the explicit square destination, not a default Break that may go to GE.
+			if (option.equalsIgnoreCase("Varrock"))
+			{
+				entry.setOption(ColorUtil.prependColorTag(rawOption, teleColor));
+			}
+			return;
+		}
 
 		// Match direct destination hint in right-click options
-		if (hint != null)
+		if (hint != null && (matchingItem || teleportMenu))
 		{
-			final String lowerOpt = option.toLowerCase();
-			final String lowerHint = hint.toLowerCase();
-			if (lowerOpt.contains(lowerHint) || lowerHint.contains(lowerOpt))
+			final String lowerOpt = option.toLowerCase(Locale.ROOT);
+			final String lowerHint = hint.toLowerCase(Locale.ROOT);
+			if (!lowerOpt.isEmpty() && lowerOpt.contains(lowerHint))
 			{
 				match = true;
 			}
-			else if (option.equalsIgnoreCase("Rub") && (itemId == teleportItem.getItemId() || target.toLowerCase().contains(hint.toLowerCase())))
+			else if (option.equalsIgnoreCase("Rub") && matchingItem)
 			{
 				match = true;
 			}
 		}
 
 		// Match item actions for tablets, spells, and cape teleports
-		if (!match && teleportItem.getItemId() > 0 && (itemId == teleportItem.getItemId() || itemId == -1))
+		if (!match && matchingItem)
 		{
 			if (option.equalsIgnoreCase("Break") || option.equalsIgnoreCase("Cast") || option.equalsIgnoreCase("Teleport") || option.equalsIgnoreCase("Read"))
 			{
 				match = true;
 			}
+		}
+		if (teleportItem.isSpell() && teleportItem.matchesMenuEntry(entry) && option.equalsIgnoreCase("Cast"))
+		{
+			match = true;
 		}
 
 		if (match)
@@ -600,7 +734,6 @@ public class MahoganyHomesPlugin extends Plugin
 			entry.setOption(ColorUtil.prependColorTag(rawOption, teleColor));
 		}
 	}
-
 
 	private void checkForContractTierDialog()
 	{
@@ -646,6 +779,7 @@ public class MahoganyHomesPlugin extends Plugin
 
 	private void saveLastContractTier()
 	{
+		queueDialogueUpdate();
 		if (lastContractTier > 0 && client.getGameState() == GameState.LOGGED_IN)
 		{
 			final String group = MahoganyHomesConfig.GROUP_NAME + "." + client.getAccountHash();
@@ -729,9 +863,14 @@ public class MahoganyHomesPlugin extends Plugin
 
 	private void setCurrentHome(final Home h)
 	{
+		resetTeleportGuidance();
+		lastHintArrowPoint = null;
+		lastHintArrowNpc = null;
+		contractorNpc = null;
 		currentHome = h;
 		if (currentHome != null)
 		{
+			lastCompletedHome = null;
 			currentContractor = null;
 			lastContractorCheckLocation = null;
 		}
@@ -780,17 +919,19 @@ public class MahoganyHomesPlugin extends Plugin
 
 	private void updateTeleportItem()
 	{
-		if ((currentHome == null && (currentContractor == null || !config.postContractGuidance())) || !config.highlightTeleports())
+		if (!running)
 		{
-			candidateTeleportItem = null;
-			targetTeleportTab = null;
-			teleportItem = null;
+			return;
+		}
+		if (isPluginTimedOut() || (currentHome == null && (currentContractor == null || !config.postContractGuidance()
+			|| config.contractorMode() == ContractorMode.DISABLED)) || !config.highlightTeleports())
+		{
+			resetTeleportGuidance();
 			return;
 		}
 
 		final TeleportItems items = currentHome != null ? currentHome.getTeleportItems() : (currentContractor != null ? currentContractor.getTeleportItems() : null);
 		candidateTeleportItem = items != null ? items.getClosestTeleportItemOnPlayer(client) : null;
-		targetTeleportTab = candidateTeleportItem != null ? candidateTeleportItem.getTab(client) : null;
 
 		if (client.getLocalPlayer() != null)
 		{
@@ -800,15 +941,44 @@ public class MahoganyHomesPlugin extends Plugin
 		{
 			teleportItem = candidateTeleportItem;
 		}
+		queueDialogueUpdate();
+	}
+
+	private void resetTeleportGuidance()
+	{
+		teleportItem = null;
+		candidateTeleportItem = null;
+		queueDialogueUpdate();
+	}
+
+	private void clearGuidanceHintArrow()
+	{
+		client.clearHintArrow();
+		lastHintArrowPoint = null;
+		lastHintArrowNpc = null;
+	}
+
+	private void resetContractGuidanceVars()
+	{
+		currentContractor = null;
+		contractorNpc = null;
+		lastContractorCheckLocation = null;
+		resetTeleportGuidance();
+		clearGuidanceHintArrow();
 	}
 
 	void selectPostContractContractor()
 	{
-		if (!config.postContractGuidance() || config.contractorMode() == ContractorMode.DISABLED)
+		if (!running || currentHome != null)
 		{
-			currentContractor = null;
 			return;
 		}
+		if (lastCompletedHome == null || !config.postContractGuidance() || config.contractorMode() == ContractorMode.DISABLED || isPluginTimedOut())
+		{
+			resetContractGuidanceVars();
+			return;
+		}
+		final Contractor previousContractor = currentContractor;
 
 		if (config.contractorMode() == ContractorMode.ALWAYS_AMY)
 		{
@@ -846,6 +1016,12 @@ public class MahoganyHomesPlugin extends Plugin
 			{
 				currentContractor = local != null ? local : Contractor.AMY;
 			}
+		}
+
+		if (currentContractor != previousContractor)
+		{
+			contractorNpc = null;
+			clearGuidanceHintArrow();
 		}
 
 		if (config.displayHintArrows() && client.getLocalPlayer() != null)
@@ -906,11 +1082,13 @@ public class MahoganyHomesPlugin extends Plugin
 		final String group = MahoganyHomesConfig.GROUP_NAME + "." + client.getAccountHash();
 
 		final String lastTier = configManager.getConfiguration(group, MahoganyHomesConfig.LAST_TIER_KEY);
+		lastContractTier = 0;
 		if (lastTier != null)
 		{
 			try
 			{
-				lastContractTier = Integer.parseInt(lastTier);
+				final int savedTier = Integer.parseInt(lastTier);
+				lastContractTier = savedTier >= 1 && savedTier <= 4 ? savedTier : 0;
 			}
 			catch (NumberFormatException ignored)
 			{
@@ -980,10 +1158,19 @@ public class MahoganyHomesPlugin extends Plugin
 
 	private void refreshTeleportItem(final WorldPoint playerPos)
 	{
+		final TeleportItem previous = teleportItem;
+		teleportItem = getRecommendedTeleport(playerPos);
+		if (teleportItem != previous)
+		{
+			queueDialogueUpdate();
+		}
+	}
+
+	private TeleportItem getRecommendedTeleport(final WorldPoint playerPos)
+	{
 		if (candidateTeleportItem == null)
 		{
-			teleportItem = null;
-			return;
+			return null;
 		}
 
 		final WorldArea targetArea;
@@ -997,8 +1184,7 @@ public class MahoganyHomesPlugin extends Plugin
 		}
 		else
 		{
-			teleportItem = null;
-			return;
+			return null;
 		}
 
 		final int distanceToTarget = distanceBetween(targetArea, playerPos);
@@ -1006,12 +1192,9 @@ public class MahoganyHomesPlugin extends Plugin
 		// Only highlight if the player is not at the target AND teleporting saves distance
 		if (distanceToTarget > 10 && (distanceToTarget - candidateTeleportItem.getDistance() > 10))
 		{
-			teleportItem = candidateTeleportItem;
+			return candidateTeleportItem;
 		}
-		else
-		{
-			teleportItem = null;
-		}
+		return null;
 	}
 
 	void refreshHintArrow(final WorldPoint playerPos)
@@ -1292,166 +1475,49 @@ public class MahoganyHomesPlugin extends Plugin
 		}
 	}
 
-	private void recolorDialogueOptions()
+	@Subscribe
+	public void onScriptCallbackEvent(final ScriptCallbackEvent event)
 	{
-		final Color color = config.highlightTeleportsColor();
-		if (color == null || isPluginTimedOut())
+		if ("spellbookSort".equals(event.getEventName()))
 		{
-			return;
-		}
-
-		final String hex = ColorUtil.colorToHexCode(color);
-
-		// Recolor contract tier option when picking a contract
-		if (currentHome == null)
-		{
-			final String tierName = getTargetTierName();
-			Widget optionWidget = findDialogOptionWidget(tierName + " contract");
-			if (optionWidget == null)
-			{
-				optionWidget = findDialogOptionWidget(tierName);
-			}
-			if (optionWidget != null)
-			{
-				final String text = optionWidget.getText();
-				if (text != null && !text.contains("<col="))
-				{
-					final String clean = Text.removeTags(text).trim();
-					optionWidget.setText("<col=" + hex + ">" + clean + "</col>");
-				}
-			}
-		}
-
-		// Recolor destination option when scroll/book interface is open
-		if (teleportItem != null && teleportItem.getDestinationHint() != null && config.highlightTeleports())
-		{
-			final Widget optionWidget = findDialogOptionWidget(teleportItem.getDestinationHint());
-			if (optionWidget != null)
-			{
-				final String text = optionWidget.getText();
-				if (text != null && !text.contains("<col="))
-				{
-					final String clean = Text.removeTags(text).trim();
-					optionWidget.setText("<col=" + hex + ">" + clean + "</col>");
-				}
-			}
+			// Recheck on the next game tick, after the script and Spellbook plugin finish filtering.
+			teleportInputsChanged = true;
 		}
 	}
 
-	Widget findDialogOptionWidget(final String hint)
+	@Subscribe
+	public void onWidgetLoaded(final WidgetLoaded event)
 	{
-		final Widget dialogOptions = client.getWidget(ComponentID.DIALOG_OPTION_OPTIONS);
-		if (dialogOptions != null && !dialogOptions.isHidden())
+		if (event.getGroupId() == InterfaceID.CHATMENU || event.getGroupId() == InterfaceID.MENU)
 		{
-			final Widget found = scanDialogWidgetTree(dialogOptions, hint);
-			if (found != null)
-			{
-				return found;
-			}
+			queueDialogueUpdate();
 		}
-
-		final Widget[] roots = client.getWidgetRoots();
-		if (roots != null)
-		{
-			for (final Widget root : roots)
-			{
-				if (root != null && !root.isHidden())
-				{
-					final int groupId = root.getId() >> 16;
-					if (groupId == (ComponentID.WORLD_MAP_MAPVIEW >> 16)
-						|| groupId == (ComponentID.CHATBOX_PARENT >> 16)
-						|| groupId == (ComponentID.FIXED_VIEWPORT_INVENTORY_TAB >> 16)
-						|| groupId == (ComponentID.SPELLBOOK_PARENT >> 16)
-						|| groupId == (ComponentID.FIXED_VIEWPORT_MINIMAP >> 16))
-					{
-						continue;
-					}
-
-					final Widget found = scanDialogWidgetTree(root, hint);
-					if (found != null)
-					{
-						return found;
-					}
-				}
-			}
-		}
-
-		return null;
 	}
 
-	private Widget scanDialogWidgetTree(final Widget widget, final String hint)
+	private void queueDialogueUpdate()
 	{
-		if (widget == null || widget.isHidden())
+		clientThread.invoke(() ->
 		{
-			return null;
-		}
-
-		final String text = widget.getText();
-		if (text != null && !text.isEmpty())
-		{
-			final String cleanText = Text.removeTags(text).trim();
-			if (cleanText.toLowerCase().contains(hint.toLowerCase()))
+			final int generation = dialogueGeneration;
+			if (!running || pendingDialogueGeneration == generation)
 			{
-				final Rectangle bounds = widget.getBounds();
-				if (bounds != null && bounds.width > 0 && bounds.height > 0 && bounds.x >= 0 && bounds.y >= 0)
-				{
-					return widget;
-				}
+				return;
 			}
-		}
-
-		final Widget[] children = widget.getChildren();
-		if (children != null)
-		{
-			for (final Widget child : children)
+			pendingDialogueGeneration = generation;
+			// Options are populated by scripts after WidgetLoaded. Update once at tick end.
+			clientThread.invokeAtTickEnd(() ->
 			{
-				final Widget found = scanDialogWidgetTree(child, hint);
-				if (found != null)
+				if (!running || generation != dialogueGeneration)
 				{
-					return found;
+					return;
 				}
-			}
-		}
-
-		final Widget[] nested = widget.getNestedChildren();
-		if (nested != null)
-		{
-			for (final Widget child : nested)
-			{
-				final Widget found = scanDialogWidgetTree(child, hint);
-				if (found != null)
-				{
-					return found;
-				}
-			}
-		}
-
-		final Widget[] dynamicChildren = widget.getDynamicChildren();
-		if (dynamicChildren != null)
-		{
-			for (final Widget child : dynamicChildren)
-			{
-				final Widget found = scanDialogWidgetTree(child, hint);
-				if (found != null)
-				{
-					return found;
-				}
-			}
-		}
-
-		final Widget[] staticChildren = widget.getStaticChildren();
-		if (staticChildren != null)
-		{
-			for (final Widget child : staticChildren)
-			{
-				final Widget found = scanDialogWidgetTree(child, hint);
-				if (found != null)
-				{
-					return found;
-				}
-			}
-		}
-
-		return null;
+				pendingDialogueGeneration = -1;
+				final boolean active = !isPluginTimedOut();
+				final String tier = active && currentHome == null && config.highlightContractorTiers() ? getTargetTierName() : null;
+				final String destination = active && config.highlightTeleports() && teleportItem != null
+					&& (currentHome != null || currentContractor != null) ? teleportItem.getDestinationHint() : null;
+				dialogueHighlighter.refresh(tier, destination, config.highlightTeleportsColor());
+			});
+		});
 	}
 }

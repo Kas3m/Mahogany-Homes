@@ -31,13 +31,12 @@ import java.awt.Rectangle;
 import javax.inject.Inject;
 import net.runelite.api.Client;
 import net.runelite.api.VarClientInt;
-import net.runelite.api.widgets.ComponentID;
+import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.ui.overlay.OverlayPriority;
-import net.runelite.client.util.Text;
 
 class TeleportWidgetOverlay extends Overlay
 {
@@ -60,214 +59,65 @@ class TeleportWidgetOverlay extends Overlay
 	public Dimension render(final Graphics2D graphics)
 	{
 		final Color color = config.highlightTeleportsColor();
-		if (color == null || plugin.isPluginTimedOut())
+		final TeleportItem teleportItem = plugin.getTeleportItem();
+		if (color == null || plugin.isPluginTimedOut() || !config.highlightTeleports() || teleportItem == null
+			|| (plugin.getCurrentHome() == null && plugin.getCurrentContractor() == null))
 		{
 			return null;
 		}
 
-		final TeleportItem teleportItem = plugin.teleportItem;
-		if (teleportItem == null || (plugin.getCurrentHome() == null && plugin.getCurrentContractor() == null) || !config.highlightTeleports())
+		final Graphics2D overlayGraphics = (Graphics2D) graphics.create();
+		try
 		{
-			return null;
-		}
-
-		// Highlight side tab if user is on the wrong tab
-		if (config.highlightTabIcons())
-		{
-			renderTabHighlight(graphics, teleportItem, color);
-		}
-
-		// Highlight spellbook spell
-		if (teleportItem.isSpell())
-		{
-			renderSpellHighlight(graphics, teleportItem, color);
-		}
-
-		return null;
-	}
-
-	private void renderTabHighlight(final Graphics2D graphics, final TeleportItem teleportItem, final Color color)
-	{
-		final TeleportItem.TeleportTab targetTab = plugin.getTargetTeleportTab() != null
-			? plugin.getTargetTeleportTab()
-			: teleportItem.getTab(client);
-		final int currentTabVarc = client.getVarcIntValue(VarClientInt.INVENTORY_TAB);
-
-		if (currentTabVarc == targetTab.getVarcValue())
-		{
-			return;
-		}
-
-		final Widget tabWidget = getTabWidget(targetTab);
-		if (tabWidget != null && !tabWidget.isHidden())
-		{
-			final Rectangle bounds = tabWidget.getBounds();
-			if (bounds != null && bounds.width > 0 && bounds.height > 0)
+			if (config.highlightTabIcons())
 			{
-				graphics.setColor(color);
-				graphics.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
-				graphics.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), 255));
-				graphics.drawRect(bounds.x, bounds.y, bounds.width, bounds.height);
-			}
-		}
-	}
-
-	private void renderSpellHighlight(final Graphics2D graphics, final TeleportItem teleportItem, final Color color)
-	{
-		final String targetSpell = teleportItem.getSpellName();
-		if (targetSpell == null)
-		{
-			return;
-		}
-
-		final Widget spellWidget = findSpellWidget(targetSpell);
-		if (spellWidget != null)
-		{
-			final Rectangle bounds = spellWidget.getBounds();
-			if (bounds != null && bounds.width > 0 && bounds.height > 0)
-			{
-				graphics.setColor(color);
-				graphics.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
-				graphics.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), 255));
-				graphics.drawRect(bounds.x, bounds.y, bounds.width, bounds.height);
-			}
-		}
-	}
-
-	Widget findSpellWidget(final String targetSpell)
-	{
-		final Widget spellbook = client.getWidget(ComponentID.SPELLBOOK_PARENT);
-		if (spellbook != null && !spellbook.isHidden())
-		{
-			return scanWidgetTree(spellbook, targetSpell);
-		}
-
-		final Widget[] roots = client.getWidgetRoots();
-		if (roots != null)
-		{
-			for (final Widget root : roots)
-			{
-				if (root != null && !root.isHidden() && (root.getId() >> 16) == (ComponentID.SPELLBOOK_PARENT >> 16))
+				final TeleportItem.TeleportTab tab = teleportItem.getTab(client);
+				if (tab != null && client.getVarcIntValue(VarClientInt.INVENTORY_TAB) != tab.getVarcValue())
 				{
-					final Widget found = scanWidgetTree(root, targetSpell);
-					if (found != null)
-					{
-						return found;
-					}
+					renderHighlight(overlayGraphics, getTabWidget(tab), color);
 				}
 			}
-		}
 
+			if (teleportItem.isSpell())
+			{
+				renderHighlight(overlayGraphics, client.getWidget(teleportItem.getSpellWidgetId()), color);
+			}
+		}
+		finally
+		{
+			overlayGraphics.dispose();
+		}
 		return null;
 	}
 
-	private Widget scanWidgetTree(final Widget widget, final String targetSpell)
+	private void renderHighlight(final Graphics2D graphics, final Widget widget, final Color color)
 	{
 		if (widget == null || widget.isHidden())
 		{
-			return null;
+			return;
 		}
-
-		final String name = widget.getName();
-		if (name != null && !name.isEmpty())
+		final Rectangle bounds = widget.getBounds();
+		if (bounds == null || bounds.width <= 0 || bounds.height <= 0)
 		{
-			final String cleanName = Text.removeTags(name).trim();
-			if (cleanName.equalsIgnoreCase(targetSpell)
-				|| cleanName.toLowerCase().contains(targetSpell.toLowerCase()))
-			{
-				final Rectangle bounds = widget.getBounds();
-				if (bounds != null && bounds.width > 0 && bounds.height > 0 && bounds.x >= 0 && bounds.y >= 0)
-				{
-					return widget;
-				}
-			}
+			return;
 		}
-
-		final Widget[] nested = widget.getNestedChildren();
-		if (nested != null)
-		{
-			for (final Widget child : nested)
-			{
-				final Widget found = scanWidgetTree(child, targetSpell);
-				if (found != null)
-				{
-					return found;
-				}
-			}
-		}
-
-		final Widget[] staticChildren = widget.getStaticChildren();
-		if (staticChildren != null)
-		{
-			for (final Widget child : staticChildren)
-			{
-				final Widget found = scanWidgetTree(child, targetSpell);
-				if (found != null)
-				{
-					return found;
-				}
-			}
-		}
-
-		final Widget[] dynamicChildren = widget.getDynamicChildren();
-		if (dynamicChildren != null)
-		{
-			for (final Widget child : dynamicChildren)
-			{
-				final Widget found = scanWidgetTree(child, targetSpell);
-				if (found != null)
-				{
-					return found;
-				}
-			}
-		}
-
-		final Widget[] children = widget.getChildren();
-		if (children != null)
-		{
-			for (final Widget child : children)
-			{
-				final Widget found = scanWidgetTree(child, targetSpell);
-				if (found != null)
-				{
-					return found;
-				}
-			}
-		}
-
-		return null;
+		graphics.setColor(color);
+		graphics.fill(bounds);
+		graphics.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue()));
+		graphics.draw(bounds);
 	}
 
-	private Widget getTabWidget(final TeleportItem.TeleportTab tab)
+	Widget getTabWidget(final TeleportItem.TeleportTab tab)
 	{
+		// The three viewport layouts have distinct components, even with InterfaceID.
 		switch (tab)
 		{
 			case INVENTORY:
-				return getFirstVisibleWidget(
-					ComponentID.FIXED_VIEWPORT_INVENTORY_TAB,
-					ComponentID.RESIZABLE_VIEWPORT_INVENTORY_TAB,
-					ComponentID.RESIZABLE_VIEWPORT_BOTTOM_LINE_INVENTORY_TAB,
-					ComponentID.FIXED_VIEWPORT_INVENTORY_ICON,
-					ComponentID.RESIZABLE_VIEWPORT_INVENTORY_ICON,
-					ComponentID.RESIZABLE_VIEWPORT_BOTTOM_LINE_INVENTORY_ICON
-				);
+				return getFirstVisibleWidget(InterfaceID.Toplevel.STONE3, InterfaceID.ToplevelOsrsStretch.STONE3, InterfaceID.ToplevelPreEoc.STONE3);
 			case EQUIPMENT:
-				return getFirstVisibleWidget(
-					ComponentID.FIXED_VIEWPORT_EQUIPMENT_TAB,
-					ComponentID.RESIZABLE_VIEWPORT_EQUIPMENT_TAB,
-					ComponentID.FIXED_VIEWPORT_EQUIPMENT_ICON,
-					ComponentID.RESIZABLE_VIEWPORT_EQUIPMENT_ICON,
-					ComponentID.RESIZABLE_VIEWPORT_BOTTOM_LINE_EQUIP_ICON
-				);
+				return getFirstVisibleWidget(InterfaceID.Toplevel.STONE4, InterfaceID.ToplevelOsrsStretch.STONE4, InterfaceID.ToplevelPreEoc.STONE4);
 			case MAGIC:
-				return getFirstVisibleWidget(
-					ComponentID.FIXED_VIEWPORT_MAGIC_TAB,
-					ComponentID.RESIZABLE_VIEWPORT_MAGIC_TAB,
-					ComponentID.RESIZABLE_VIEWPORT_BOTTOM_LINE_MAGIC_TAB,
-					ComponentID.FIXED_VIEWPORT_MAGIC_ICON,
-					ComponentID.RESIZABLE_VIEWPORT_MAGIC_ICON,
-					ComponentID.RESIZABLE_VIEWPORT_BOTTOM_LINE_MAGIC_ICON
-				);
+				return getFirstVisibleWidget(InterfaceID.Toplevel.STONE6, InterfaceID.ToplevelOsrsStretch.STONE6, InterfaceID.ToplevelPreEoc.STONE6);
 			default:
 				return null;
 		}
@@ -286,4 +136,3 @@ class TeleportWidgetOverlay extends Overlay
 		return null;
 	}
 }
-

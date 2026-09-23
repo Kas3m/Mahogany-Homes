@@ -36,13 +36,18 @@ import net.runelite.api.InventoryID;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.ItemID;
+import net.runelite.api.MenuEntry;
 import net.runelite.api.Skill;
 import net.runelite.api.Varbits;
+import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.VarbitID;
+import net.runelite.api.widgets.Widget;
 
 @Getter
 public class TeleportItem
 {
+	private static final int HOSIDIUS_HOUSE_LOCATION = 8;
+
 	public enum Type
 	{
 		ITEM,
@@ -96,7 +101,7 @@ public class TeleportItem
 		ItemID.SMOKE_BATTLESTAFF, ItemID.MYSTIC_SMOKE_STAFF,
 		ItemID.STEAM_BATTLESTAFF, ItemID.MYSTIC_STEAM_STAFF,
 		ItemID.STEAM_BATTLESTAFF_12795, ItemID.MYSTIC_STEAM_STAFF_12796,
-		ItemID.TOME_OF_FIRE, ItemID.BRYOPHYTAS_STAFF
+		ItemID.TOME_OF_FIRE
 	);
 
 	private static final Set<Integer> RUNE_POUCH_IDS = ImmutableSet.of(
@@ -113,6 +118,18 @@ public class TeleportItem
 		VarbitID.RUNE_POUCH_TYPE_4, VarbitID.RUNE_POUCH_TYPE_5, VarbitID.RUNE_POUCH_TYPE_6,
 	};
 
+	static boolean isRunePouchVarbit(final int id)
+	{
+		for (int i = 0; i < RUNEPOUCH_RUNE_VARBITS.length; i++)
+		{
+			if (id == RUNEPOUCH_RUNE_VARBITS[i] || id == RUNEPOUCH_AMOUNT_VARBITS[i])
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
 	// Backward compatibility
 	public int ItemId;
 	public int Distance;
@@ -121,6 +138,7 @@ public class TeleportItem
 	private final int itemId;
 	private final int distance;
 	private final String spellName;
+	private final int spellWidgetId;
 	private final int requiredMagicLevel;
 	private final String destinationHint;
 	private final Map<Integer, Integer> requiredRunes = new HashMap<>();
@@ -138,11 +156,12 @@ public class TeleportItem
 		this.ItemId = itemId;
 		this.Distance = distance;
 		this.spellName = null;
+		this.spellWidgetId = -1;
 		this.requiredMagicLevel = 0;
 		this.destinationHint = destinationHint;
 	}
 
-	public TeleportItem(final String spellName, final int distance, final int requiredMagicLevel, final Item... runes)
+	public TeleportItem(final String spellName, final int spellWidgetId, final int distance, final int requiredMagicLevel, final Item... runes)
 	{
 		this.type = Type.SPELL;
 		this.itemId = -1;
@@ -150,6 +169,7 @@ public class TeleportItem
 		this.ItemId = -1;
 		this.Distance = distance;
 		this.spellName = spellName;
+		this.spellWidgetId = spellWidgetId;
 		this.requiredMagicLevel = requiredMagicLevel;
 		this.destinationHint = null;
 
@@ -167,9 +187,40 @@ public class TeleportItem
 		return type == Type.SPELL;
 	}
 
+	boolean matchesMenuEntry(final MenuEntry entry)
+	{
+		final Widget widget = entry.getWidget();
+		if (widget == null)
+		{
+			return false;
+		}
+		if (isSpell())
+		{
+			return widget.getId() == spellWidgetId;
+		}
+		final int group = widget.getId() >>> 16;
+		if (group == InterfaceID.INVENTORY)
+		{
+			return widget.getItemId() == itemId;
+		}
+		if (group == InterfaceID.WORNITEMS)
+		{
+			final Widget item = widget.getChild(1);
+			return item != null && item.getItemId() == itemId;
+		}
+		return false;
+	}
+
 	public boolean isAvailableOnPlayer(final Client client)
 	{
 		if (client == null)
+		{
+			return false;
+		}
+		// Every ordinary house teleport in our routes assumes the Hosidius portal.
+		// Redirected tablets and Construction cape portal choices are independent of it.
+		if ((itemId == ItemID.TELEPORT_TO_HOUSE || spellWidgetId == InterfaceID.MagicSpellbook.TELEPORT_TO_YOUR_HOUSE)
+			&& client.getVarbitValue(VarbitID.POH_HOUSE_LOCATION) != HOSIDIUS_HOUSE_LOCATION)
 		{
 			return false;
 		}
@@ -230,6 +281,18 @@ public class TeleportItem
 			return false;
 		}
 
+		final Widget spell = client.getWidget(spellWidgetId);
+		if (spell != null)
+		{
+			// A closed Magic tab hides the parent; only the spell's own flag is relevant.
+			// While reordering, RuneLite displays hidden spells with an Unhide action.
+			final String[] actions = spell.getActions();
+			if (spell.isSelfHidden() || (actions != null && actions.length > 6 && "Unhide".equals(actions[6])))
+			{
+				return false;
+			}
+		}
+
 		return hasRequiredRunes(client);
 	}
 
@@ -282,25 +345,25 @@ public class TeleportItem
 		switch (itemId)
 		{
 			case ItemID.AIR_RUNE:
-				if (hasInfiniteRune(inventory, equipment, AIR_SOURCES))
+				if (hasInfiniteRune(equipment, AIR_SOURCES))
 				{
 					return Integer.MAX_VALUE;
 				}
 				return safeCount(inventory, runePouchContents, ItemID.AIR_RUNE, ItemID.DUST_RUNE, ItemID.MIST_RUNE, ItemID.SMOKE_RUNE);
 			case ItemID.WATER_RUNE:
-				if (hasInfiniteRune(inventory, equipment, WATER_SOURCES))
+				if (hasInfiniteRune(equipment, WATER_SOURCES))
 				{
 					return Integer.MAX_VALUE;
 				}
 				return safeCount(inventory, runePouchContents, ItemID.WATER_RUNE, ItemID.MIST_RUNE, ItemID.MUD_RUNE, ItemID.STEAM_RUNE);
 			case ItemID.EARTH_RUNE:
-				if (hasInfiniteRune(inventory, equipment, EARTH_SOURCES))
+				if (hasInfiniteRune(equipment, EARTH_SOURCES))
 				{
 					return Integer.MAX_VALUE;
 				}
 				return safeCount(inventory, runePouchContents, ItemID.EARTH_RUNE, ItemID.DUST_RUNE, ItemID.MUD_RUNE, ItemID.LAVA_RUNE);
 			case ItemID.FIRE_RUNE:
-				if (hasInfiniteRune(inventory, equipment, FIRE_SOURCES))
+				if (hasInfiniteRune(equipment, FIRE_SOURCES))
 				{
 					return Integer.MAX_VALUE;
 				}
@@ -310,7 +373,7 @@ public class TeleportItem
 		}
 	}
 
-	private boolean hasInfiniteRune(final ItemContainer inventory, final ItemContainer equipment, final Set<Integer> sources)
+	private boolean hasInfiniteRune(final ItemContainer equipment, final Set<Integer> sources)
 	{
 		if (equipment != null)
 		{
@@ -323,16 +386,6 @@ public class TeleportItem
 			}
 		}
 
-		if (inventory != null)
-		{
-			for (final int sourceId : sources)
-			{
-				if (inventory.contains(sourceId))
-				{
-					return true;
-				}
-			}
-		}
 
 		return false;
 	}
